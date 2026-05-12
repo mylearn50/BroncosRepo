@@ -2,19 +2,20 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Broncos Finance Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https Inc.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #0F0F0F; color: white; margin: 0; }
         .bg-broncos-orange { background-color: #FF5E00; }
         .bg-broncos-card { background-color: #1E1E1E; }
         .text-broncos-orange { color: #FF5E00; }
-        ::-webkit-scrollbar { display: none; }
+        /* Mobile Zoom Fix: Ensure font-size is at least 16px */
+        input, select { font-size: 16px !important; }
     </style>
 </head>
 <body>
@@ -32,40 +33,75 @@
             const [pass, setPass] = useState("");
             const [tab, setTab] = useState('dash');
             const [data, setData] = useState(() => {
-                const s = localStorage.getItem('broncos_final_v1');
-                return s ? JSON.parse(s) : { players: [], leagues: [], contributions: [], expenses: [] };
+                const s = localStorage.getItem('broncos_pro_v11');
+                return s ? JSON.parse(s) : { players: [], leagues: [], registrations: [], payments: [], expenses: [] };
             });
 
-            useEffect(() => { localStorage.setItem('broncos_final_v1', JSON.stringify(data)); }, [data]);
+            useEffect(() => { localStorage.setItem('broncos_pro_v11', JSON.stringify(data)); }, [data]);
 
-            const handleLogin = (e) => {
-                e.preventDefault();
-                if (pass === SECRET) setAuth(true); else alert("Wrong Code");
+            // --- CORE ENGINE: UPPERCASE ENFORCEMENT ---
+            const handleInputChange = (e, field, collection, id = null) => {
+                const val = e.target.value.toUpperCase();
+                if (id === null) {
+                    // Adding new item
+                    const newItem = { ...e.target.elements }; // simplified for demo
+                    // In a real app, we'd map specific fields
+                }
             };
 
-            // CRUD Logic
+            // --- ACTIONS ---
+            const addPlayer = (name, role) => add('players', { name: name.toUpperCase(), role });
+            const addLeague = (name, budget) => add('leagues', { name: name.toUpperCase(), budget: Number(budget) });
+            
+            const registerPlayer = (playerId, leagueId) => {
+                const player = data.players.find(p => p.id === playerId);
+                const league = data.leagues.find(l => l.id === leagueId);
+                if(!player || !league) return;
+                
+                const existing = data.registrations.find(r => r.playerId === playerId && r.leagueId === leagueId);
+                if(existing) return alert("Already registered");
+
+                add('registrations', { 
+                    playerId, 
+                    leagueId, 
+                    status: 'UNPAID', 
+                    balance: league.budget 
+                });
+            };
+
             const add = (type, obj) => setData({ ...data, [type]: [...data[type], { id: Date.now(), ...obj }] });
             const del = (type, id) => { if(confirm("Delete?")) setData({ ...data, [type]: data[type].filter(i => i.id !== id) }); };
 
-            // Sync
-            const exportDB = () => {
-                const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'broncos_backup.json'; a.click();
-            };
-            const importDB = (e) => {
-                const reader = new FileReader();
-                reader.onload = (evt) => { try { setData(JSON.parse(evt.target.result)); alert("Sync OK"); } catch(err) { alert("Error"); } };
-                reader.readAsText(e.target.files[0]);
+            // Payment logic that updates the Registration balance
+            const recordPayment = (regId, amount, date, purpose) => {
+                const amt = Number(amount);
+                const newPayments = [...data.payments, { id: Date.now(), regId: Number(regId), amount: amt, date, purpose }];
+                
+                const newRegs = data.registrations.map(r => {
+                    if(r.id === Number(regId)) {
+                        const newBal = r.balance - amt;
+                        return { ...r, balance: newBal, status: newBal <= 0 ? 'PAID' : 'PARTIAL' };
+                    }
+                    return r;
+                });
+
+                setData({ ...data, payments: newPayments, registrations: newRegs });
             };
 
-            // Stats
-            const inc = data.contributions.reduce((s, i) => s + Number(i.amount), 0);
-            const exp = data.expenses.reduce((s, i) => s + Number(i.amount), 0);
-            const bal = inc - exp;
+            const addExpense = (type, leagueId, amount, date, category, pb) => {
+                add('expenses', { type, leagueId: leagueId ? Number(leagueId) : null, amount: Number(amount), date, category, paidBy: pb });
+            };
+
+            // --- ANALYTICS ---
+            const stats = useMemo(() => {
+                const inc = data.payments.reduce((s, i) => s + i.amount, 0);
+                const exp = data.expenses.reduce((s, i) => s + i.amount, 0);
+                return { inc, exp, bal: inc - exp };
+            }, [data]);
 
             if (!auth) return (
                 <div className="h-screen flex items-center justify-center p-6 bg-black">
-                    <form onSubmit={handleLogin} className="w-full max-w-sm bg-broncos-card p-8 rounded-3xl border border-gray-800 text-center">
+                    <form onSubmit={(e) => {e.preventDefault(); if(pass === SECRET) setAuth(true); else alert("Wrong Code");}} className="w-full max-w-sm bg-broncos-card p-8 rounded-3xl border border-gray-800 text-center">
                         <div className="w-16 h-16 bg-broncos-orange rounded-xl mx-auto mb-4 flex items-center justify-center text-black text-3xl font-black italic">B</div>
                         <h1 className="text-xl font-black italic mb-6 uppercase">Broncos Access</h1>
                         <input type="password" placeholder="Code" className="w-full p-4 bg-black border border-gray-700 rounded-xl mb-4 text-center outline-none focus:border-broncos-orange" onChange={e => setPass(e.target.value)} />
@@ -86,32 +122,26 @@
                             <div className="space-y-6 animate-in fade-in">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="bg-broncos-card p-4 rounded-2xl border-b-4 border-green-500">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Income</p>
-                                        <p className="text-2xl font-black text-green-500">${inc}</p>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Total In</p>
+                                        <p className="text-2xl font-black text-green-500">${stats.inc}</p>
                                     </div>
                                     <div className="bg-broncos-card p-4 rounded-2xl border-b-4 border-red-500">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Spent</p>
-                                        <p className="text-2xl font-black text-red-500">${exp}</p>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Total Out</p>
+                                        <p className="text-2xl font-black text-red-500">${stats.exp}</p>
                                     </div>
                                 </div>
                                 <div className="bg-broncos-orange p-6 rounded-3xl text-black shadow-xl">
                                     <p className="font-black uppercase text-xs opacity-70">Net Balance</p>
-                                    <p className="text-5xl font-black">${bal}</p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button onClick={exportDB} className="bg-gray-800 text-[10px] font-bold p-3 rounded-xl uppercase">Export Data</button>
-                                    <label className="bg-gray-800 text-[10px] font-bold p-3 rounded-xl uppercase text-center cursor-pointer">
-                                        Import <input type="file" className="hidden" onChange={importDB} />
-                                    </label>
+                                    <p className="text-5xl font-black">${stats.bal}</p>
                                 </div>
                             </div>
                         )}
 
                         {tab === 'team' && (
                             <div className="space-y-6">
-                                <h2 className="text-2xl font-black italic text-broncos-orange">Team Roster</h2>
-                                <form onSubmit={(e) => {e.preventDefault(); add('players', {name: e.target.n.value, role: e.target.r.value}); e.target.reset();}} className="bg-broncos-card p-4 rounded-2xl space-y-3 border-t-4 border-broncos-orange">
-                                    <input name="n" placeholder="Player Name" className="w-full p-3 bg-black border border-gray-700 rounded-xl text-sm" required />
+                                <h2 className="text-2xl font-black italic text-broncos-orange">Players</h2>
+                                <form onSubmit={(e) => {e.preventDefault(); addPlayer(e.target.n.value, e.target.r.value); e.target.reset();}} className="bg-broncos-card p-4 rounded-2xl space-y-3 border-t-4 border-broncos-orange">
+                                    <input name="n" placeholder="Name" className="w-full p-3 bg-black border border-gray-700 rounded-xl text-sm" required />
                                     <select name="r" className="w-full p-3 bg-black border border-gray-700 rounded-xl text-sm">
                                         <option>Player</option><option>Captain</option><option>Manager</option>
                                     </select>
@@ -129,14 +159,14 @@
                         {tab === 'league' && (
                             <div className="space-y-6">
                                 <h2 className="text-2xl font-black italic text-broncos-orange">Leagues</h2>
-                                <form onSubmit={(e) => {e.preventDefault(); add('leagues', {name: e.target.n.value, budget: e.target.b.value}); e.target.reset();}} className="bg-broncos-card p-4 rounded-2xl space-y-3 border-t-4 border-broncos-orange">
+                                <form onSubmit={(e) => {e.preventDefault(); addLeague(e.target.n.value, e.target.b.value); e.target.reset();}} className="bg-broncos-card p-4 rounded-2xl space-y-3 border-t-4 border-broncos-orange">
                                     <input name="n" placeholder="League Name" className="w-full p-3 bg-black border border-gray-700 rounded-xl text-sm" required />
                                     <input name="b" type="number" placeholder="Budget ($)" className="w-full p-3 bg-black border border-gray-700 rounded-xl text-sm" required />
                                     <button className="w-full bg-broncos-orange text-black font-black p-3 rounded-xl uppercase text-sm">Add League</button>
                                 </form>
                                 <div className="space-y-2">
                                     {data.leagues.map(l => <div key={l.id} className="bg-broncos-card p-4 rounded-2xl flex justify-between items-center">
-                                        <div><p className="font-bold">{l.name}</p><p className="text-xs text-gray-500">Goal: ${l.budget}</p></div>
+                                        <div><p className="font-bold">{l.name}</p><p className="text-xs text-gray-500">Budget: ${l.budget}</p></div>
                                         <button onClick={() => del('leagues', l.id)} className="text-red-500">✕</button>
                                     </div>)}
                                 </div>
@@ -145,26 +175,30 @@
 
                         {tab === 'in' && (
                             <div className="space-y-6">
-                                <h2 className="text-2xl font-black italic text-green-500">Income</h2>
-                                <form onSubmit={(e) => {e.preventDefault(); const f=e.target; add('contributions', {playerId: Number(f.p.value), leagueId: f.l.value ? Number(f.l.value) : null, amount: Number(f.a.value), date: f.d.value, purpose: f.purp.value}); f.reset();}} className="bg-broncos-card p-4 rounded-2xl space-y-3 border-t-4 border-green-500">
-                                    <select name="p" className="w-full p-3 bg-black border border-gray-700 rounded-xl text-sm" required>
-                                        <option value="">Select Player</option>{data.players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                    </select>
-                                    <select name="l" className="w-full p-3 bg-black border border-gray-700 rounded-xl text-sm">
-                                        <option value="">General Fund</option>{data.leagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                <h2 className="text-2xl font-black italic text-green-500">Payments</h2>
+                                <form onSubmit={(e) => {e.preventDefault(); const f=e.target; recordPayment(f.reg.value, f.a.value, f.d.value, f.purp.value); f.reset();}} className="bg-broncos-card p-4 rounded-2xl space-y-3 border-t-4 border-green-500">
+                                    <select name="reg" className="w-full p-3 bg-black border border-gray-700 rounded-xl text-sm" required>
+                                        <option value="">Select Registration</option>
+                                        {data.registrations.map(r => {
+                                            const p = data.players.find(pl => pl.id === r.playerId);
+                                            const l = data.leagues.find(le => le.id === r.leagueId);
+                                            return <option key={r.id} value={r.id}>{p?.name} ({l?.name})</option>
+                                        })}
                                     </select>
                                     <input name="a" type="number" placeholder="Amount ($)" className="w-full p-3 bg-black border border-gray-700 rounded-xl text-sm" required />
                                     <input name="d" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-3 bg-black border border-gray-700 rounded-xl text-sm" required />
                                     <select name="purp" className="w-full p-3 bg-black border border-gray-700 rounded-xl text-sm">
                                         {PURP.map(p => <option key={p} value={p}>{p}</option>)}
                                     </select>
-                                    <button className="w-full bg-green-600 text-white font-black p-3 rounded-xl uppercase text-sm">Record</button>
+                                    <button className="w-full bg-green-600 text-white font-black p-3 rounded-xl uppercase text-sm">Confirm Payment</button>
                                 </form>
                                 <div className="space-y-2">
-                                    {data.contributions.slice().reverse().map(c => <div key={c.id} className="bg-broncos-card p-4 rounded-2xl flex justify-between items-center text-sm border-l-4 border-green-500">
-                                        <div><p className="font-bold text-white">{data.players.find(p=>p.id===c.playerId)?.name}</p><p className="text-[10px] text-gray-500 uppercase">{c.purpose} • {c.date}</p></div>
-                                        <p className="font-black text-green-500">+${c.amount}</p>
-                                    </div>)}
+                                    {data.payments.slice().reverse().map(p => (
+                                        <div key={p.id} className="bg-broncos-card p-4 rounded-2xl flex justify-between items-center text-sm">
+                                            <div><p className="font-bold text-white">Payment Received</p><p className="text-[10px] text-gray-500 uppercase">{p.purpose} • {p.date}</p></div>
+                                            <p className="font-black text-green-500">+${p.amount}</p>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         )}
@@ -185,40 +219,21 @@
                                     <select name="pb" className="w-full p-3 bg-black border border-gray-700 rounded-xl text-sm">
                                         <option>Team Fund</option><option>Individual</option>
                                     </select>
-                                    <button className="w-full bg-red-600 text-white font-black p-3 rounded-xl uppercase text-sm">Record</button>
+                                    <button className="w-full bg-red-600 text-white font-black p-3 rounded-xl uppercase text-sm">Record Cost</button>
                                 </form>
                                 <div className="space-y-2">
-                                    {data.expenses.slice().reverse().map(e => <div key={e.id} className="bg-broncos-card p-4 rounded-2xl flex justify-between items-center text-sm border-l-4 border-red-500">
-                                        <div><p className="font-bold text-white">{e.type}</p><p className="text-[10px] text-gray-500 uppercase">{e.category} • {e.date}</p></div>
-                                        <p className="font-black text-red-500">-${e.amount}</p>
-                                    </div>)}
+                                    {data.expenses.slice().reverse().map(e => (
+                                        <div key={e.id} className="bg-broncos-card p-4 rounded-2xl flex justify-between items-center text-sm border-l-4 border-red-500">
+                                            <div><p className="font-bold text-white">{e.type}</p><p className="text-[10px] text-gray-500 uppercase">{e.category} • {e.date}</p></div>
+                                            <p className="font-black text-red-500">-${e.amount}</p>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         )}
-                    </main>
 
-                    <nav className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 flex justify-around p-3 pb-6 z-50">
-                        <NavBtn active={tab === 'dash'} label="Home" icon="🏠" onClick={() => setTab('dash')} />
-                        <NavBtn active={tab === 'league'} label="Leagues" icon="🏆" onClick={() => setTab('league')} />
-                        <NavBtn active={tab === 'team'} label="Team" icon="👥" onClick={() => setTab('team')} />
-                        <NavBtn active={tab === 'in'} label="In" icon="💰" onClick={() => setTab('in')} />
-                        <NavBtn active={tab === 'out'} label="Out" icon="📉" onClick={() => setTab('out')} />
-                    </nav>
-                </div>
-            );
-        }
-
-        function NavBtn({ active, label, icon, onClick }) {
-            return (
-                <button onClick={onClick} className={`flex flex-col items-center transition-all ${active ? 'text-broncos-orange scale-110' : 'text-gray-500'}`}>
-                    <span className="text-xl">{icon}</span>
-                    <span className="text-[10px] font-bold uppercase tracking-tighter">{label}</span>
-                </button>
-            );
-        }
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+                        {tab === 'reg' && (
+                            <div className="space-y-6">
+                                <h2 className="text-2xl font-black italic text-broncos-orange">Register Player</h2>
+                                <form onSubmit={(e) => {e.preventDefault(); const f=e.target; add('registrations', {playerId: Number(f.p.value), leagueId: Number(f.l.value), status: 'UNPAID', balance: data.leagues.find(l=>l.id===Number(f.l.value))?.budget || 0}); f.reset();}} className="bg-broncos-card p-4 rounded-2xl space-y-3 border-t-4 border-broncos-orange">
+                                    <select name="p" className="w-full p-3 bg-black border
