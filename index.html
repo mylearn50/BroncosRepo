@@ -32,26 +32,29 @@
             const [pass, setPass] = useState("");
             const [tab, setTab] = useState('dash');
             const [data, setData] = useState(() => {
-                const s = localStorage.getItem('broncos_final_v13');
+                const s = localStorage.getItem('broncos_v_ultimate');
                 return s ? JSON.parse(s) : { players: [], leagues: [], registrations: [], transactions: [] };
             });
 
-            useEffect(() => { localStorage.setItem('broncos_final_v13', JSON.stringify(data)); }, [data]);
+            useEffect(() => { localStorage.setItem('broncos_v_ultimate', JSON.stringify(data)); }, [data]);
 
             const handleLogin = (e) => {
                 e.preventDefault();
                 if (pass === SECRET) setAuth(true); else alert("Wrong Code");
             };
 
+            // CRUD Actions
             const add = (type, obj) => setData({ ...data, [type]: [...data[type], { id: Date.now(), ...obj }] });
             const del = (type, id) => { if(confirm("Delete?")) setData({ ...data, [type]: data[type].filter(i => i.id !== id) }); };
 
-            const regPlayer = (pId, lId) => {
+            // RELATIONAL ENGINE: The Player-to-League Link
+            const registerPlayer = (pId, lId) => {
                 if (data.registrations.find(r => r.playerId === Number(pId) && r.leagueId === Number(lId))) return alert("Already Registered!");
                 const league = data.leagues.find(l => l.id === Number(lId));
                 add('registrations', { playerId: Number(pId), leagueId: Number(lId), balance: league.budget, status: 'UNPAID' });
             };
 
+            // TRANSACTION ENGINE: Updates Player/League Balance
             const recordTrans = (regId, amount, date, type, cat) => {
                 const amt = Number(amount);
                 const newT = { id: Date.now(), regId: Number(regId), amount: amt, date, type, category: cat };
@@ -65,14 +68,14 @@
                     }
                     return r;
                 });
-                setData({ ...data, transactions: [...data.transactions, newT], registrations: newR });
+                setData({ ...data, transactions: [...data.transactions, newT], registrations: newRegs });
             };
 
+            // SYNC
             const exportDB = () => {
                 const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
                 const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'broncos_backup.json'; a.click();
             };
-
             const importDB = (e) => {
                 const reader = new FileReader();
                 reader.onload = (evt) => { try { setData(JSON.parse(evt.target.result)); alert("Sync Success!"); } catch(err) { alert("Error"); } };
