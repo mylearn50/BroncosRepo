@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device나, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-device, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Broncos Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -14,7 +14,7 @@
         .bg-broncos-orange { background-color: #FF5E00; }
         .bg-broncos-card { background-color: #1E1E1E; }
         .text-broncos-orange { color: #FF5E00; }
-        input, select { font-size: 16px !important; } /* Prevent iOS Zoom */
+        input, select { font-size: 16px !important; }
     </style>
 </head>
 <body>
@@ -32,13 +32,12 @@
             const [pass, setPass] = useState("");
             const [tab, setTab] = useState('dash');
             const [data, setData] = useState(() => {
-                const s = localStorage.getItem('broncos_v_ultra');
+                const s = localStorage.getItem('broncos_v_final_fixed');
                 return s ? JSON.parse(s) : { players: [], leagues: [], registrations: [], transactions: [] };
             });
 
-            useEffect(() => { localStorage.setItem('broncos_v_ultra', JSON.stringify(data)); }, [data]);
+            useEffect(() => { localStorage.setItem('broncos_v_final_fixed', JSON.stringify(data)); }, [data]);
 
-            // --- LOGIC ---
             const handleLogin = (e) => {
                 e.preventDefault();
                 if (pass === SECRET) setAuth(true); else alert("Wrong Code");
@@ -47,7 +46,6 @@
             const add = (type, obj) => setData({ ...data, [type]: [...data[type], { id: Date.now(), ...obj }] });
             const del = (type, id) => { if(confirm("Delete?")) setData({ ...data, [type]: data[type].filter(i => i.id !== id) }); };
 
-            // RELATIONAL ENGINE: Link Player to League
             const regPlayer = (pId, lId) => {
                 if (data.registrations.find(r => r.playerId === Number(pId) && r.leagueId === Number(lId))) return alert("Already Registered!");
                 const league = data.leagues.find(l => l.id === Number(lId));
@@ -109,11 +107,11 @@
                         {tab === 'dash' && (
                             <div className="space-y-6">
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-broncos-card p-4 rounded-2xl border-l-4 border-green-500">
+                                    <div className="bg-broncos-card p-4 rounded-2xl border-b-4 border-green-500">
                                         <p className="text-[10px] font-bold text-gray-400 uppercase">Income</p>
                                         <p className="text-2xl font-black text-green-500">${stats.inc}</p>
                                     </div>
-                                    <div className="bg-broncos-card p-4 rounded-2xl border-l-4 border-red-500">
+                                    <div className="bg-broncos-card p-4 rounded-2xl border-b-4 border-red-500">
                                         <p className="text-[10px] font-bold text-gray-400 uppercase">Spent</p>
                                         <p className="text-2xl font-black text-red-500">${stats.exp}</p>
                                     </div>
